@@ -38,6 +38,10 @@ export const loader = async ({ request }) => {
               id
               name
               email
+              displayFinancialStatus
+              customer {
+                email
+              }
             }
           }
         }
@@ -50,6 +54,12 @@ export const loader = async ({ request }) => {
     );
 
     const data = await response.json();
+    console.log("verify debug", {
+      query: keyword,
+      edgesLen: data?.data?.orders?.edges?.length,
+      first: data?.data?.orders?.edges?.[0]?.node,
+      inputEmail: email,
+    });
     const edges = data?.data?.orders?.edges ?? [];
     const order = edges[0]?.node;
 
