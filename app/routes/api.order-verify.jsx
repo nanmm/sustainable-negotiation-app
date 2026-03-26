@@ -31,14 +31,13 @@ export const loader = async ({ request }) => {
     const keyword = `#${base}`;
     const response = await admin.graphql(
       `#graphql
-      query getOrder($query: String!) {
-        orders(first: 1, query: $query) {
+      query getOrders($query: String!) {
+        orders(first: 20, query: $query) {
           edges {
             node {
               id
               name
               email
-              displayFinancialStatus
               customer {
                 email
               }
@@ -54,30 +53,26 @@ export const loader = async ({ request }) => {
     );
 
     const data = await response.json();
-    console.log("verify debug", {
-      query: keyword,
-      edgesLen: data?.data?.orders?.edges?.length,
-      first: data?.data?.orders?.edges?.[0]?.node,
-      inputEmail: email,
-    });
     const edges = data?.data?.orders?.edges ?? [];
-    const order = edges[0]?.node;
-    
+    const normalizedInput = email.toLowerCase();
+
+    const matched = edges.find(({ node }) => {
+      const name = (node?.name || "").replace(/^#/, "");
+      const orderMain = name.split("-")[0];
+      const emailCandidates = [node?.email, node?.customer?.email]
+        .filter(Boolean)
+        .map((value) => value.toLowerCase());
+
+      return orderMain === base && emailCandidates.includes(normalizedInput);
+    });
+
     return Response.json(
-      {
-        exists: false,
-        debug: {
-          query: keyword,
-          edgesLen: edges.length,
-          first: order,
-          inputEmail: email,
-        },
-      },
+      { exists: !!matched },
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (e) {
     return Response.json(
-      { exists: false, debug: { error: String(e) } },
+      { exists: false },
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
