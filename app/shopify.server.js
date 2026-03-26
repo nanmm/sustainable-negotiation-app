@@ -15,7 +15,8 @@ const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
-  distribution: AppDistribution.AppStore,
+  // This app is installed directly on your own store(s), not distributed via the App Store.
+  distribution: AppDistribution.Custom,
   future: {
     expiringOfflineAccessTokens: true,
   },
