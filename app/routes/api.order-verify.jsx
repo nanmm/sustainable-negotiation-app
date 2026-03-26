@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
@@ -48,6 +49,19 @@ export const loader = async ({ request }) => {
     const { admin } = await authenticate.public.appProxy(request);
 
     if (!admin) {
+      let sessionCount = null;
+      let sampleShops = null;
+      try {
+        sessionCount = await db.session.count();
+        const sessions = await db.session.findMany({
+          select: { shop: true },
+          take: 5,
+          orderBy: { shop: "asc" },
+        });
+        sampleShops = sessions.map((s) => s.shop);
+      } catch {
+        // ignore db errors in debug response
+      }
       return Response.json(
         debug
           ? {
@@ -56,6 +70,8 @@ export const loader = async ({ request }) => {
                 reason: "no_admin_in_app_proxy_context",
                 shop: url.searchParams.get("shop"),
                 keys: Array.from(url.searchParams.keys()),
+                sessionCount,
+                sampleShops,
               },
             }
           : { exists: false },
