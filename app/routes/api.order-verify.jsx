@@ -28,7 +28,9 @@ export const loader = async ({ request }) => {
     }
     
     const base = orderName.replace(/^#/, "").split("-")[0]; // 1001-F1 -> 1001
-    const keyword = `#${base}`;
+    // Match Shopify Admin order search behavior: "1001" works, and add email filter to reduce false positives.
+    // Use a unique variable name to avoid TS language-service false "redeclare" errors.
+    const orderQuery = `${base} email:${email}`;
     const response = await admin.graphql(
       `#graphql
       query getOrders($query: String!) {
@@ -47,7 +49,7 @@ export const loader = async ({ request }) => {
       }`,
       {
         variables: {
-          query: keyword,
+          query: orderQuery,
         },
       }
     );
