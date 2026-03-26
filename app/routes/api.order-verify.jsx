@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
@@ -9,13 +10,32 @@ export const loader = async ({ request }) => {
     url.searchParams.get("debug") ??
     url.searchParams.get("_debug") ??
     "";
-  const debug = debugFlag === "1" || debugFlag.toLowerCase() === "true";
+  const debug =
+    url.searchParams.has("dbg") ||
+    url.searchParams.has("debug") ||
+    url.searchParams.has("_debug") ||
+    debugFlag === "1" ||
+    debugFlag.toLowerCase() === "true";
 
   if (!orderNumber || !email) {
-    return Response.json({ exists: false }, {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json(
+      debug
+        ? {
+            exists: false,
+            debug: {
+              reason: "missing_params",
+              dbg: url.searchParams.get("dbg"),
+              debug: url.searchParams.get("debug"),
+              _debug: url.searchParams.get("_debug"),
+              keys: Array.from(url.searchParams.keys()),
+            },
+          }
+        : { exists: false },
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json", "X-Dbg-Seen": debugFlag || "" },
+      }
+    );
   }
 
   // 规范化订单号：去空格，补 #
@@ -84,6 +104,10 @@ export const loader = async ({ request }) => {
             edgesLen: edges.length,
             first: edges[0]?.node ?? null,
             errors: data?.errors ?? null,
+            dbg: url.searchParams.get("dbg"),
+            debug: url.searchParams.get("debug"),
+            _debug: url.searchParams.get("_debug"),
+            keys: Array.from(url.searchParams.keys()),
           },
         },
         { headers: { "Content-Type": "application/json" } }
