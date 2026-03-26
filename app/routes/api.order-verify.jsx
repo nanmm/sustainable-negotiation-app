@@ -42,7 +42,7 @@ export const loader = async ({ request }) => {
       }`,
       {
         variables: {
-          query: `name:${orderName}`,
+          query: `name:"${orderName}"`,
         },
       }
     );
