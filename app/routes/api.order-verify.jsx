@@ -62,23 +62,23 @@ export const loader = async ({ request }) => {
     });
     const edges = data?.data?.orders?.edges ?? [];
     const order = edges[0]?.node;
-
-    const emailMatch =
-      order?.email &&
-      order.email.toLowerCase() === email.toLowerCase();
-
+    
     return Response.json(
-      { exists: !!emailMatch },
+      {
+        exists: false,
+        debug: {
+          query: keyword,
+          edgesLen: edges.length,
+          first: order,
+          inputEmail: email,
+        },
+      },
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (e) {
-    console.error("Order verify error:", e);
     return Response.json(
-      { exists: false },
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      { exists: false, debug: { error: String(e) } },
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 };
