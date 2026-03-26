@@ -26,7 +26,9 @@ export const loader = async ({ request }) => {
         headers: { "Content-Type": "application/json" },
       });
     }
-
+    
+    const base = orderName.replace(/^#/, "").split("-")[0]; // 1001-F1 -> 1001
+    const keyword = `#${base}`;
     const response = await admin.graphql(
       `#graphql
       query getOrder($query: String!) {
@@ -42,7 +44,7 @@ export const loader = async ({ request }) => {
       }`,
       {
         variables: {
-          query: `name:"${orderName}"`,
+          query: keyword,
         },
       }
     );
