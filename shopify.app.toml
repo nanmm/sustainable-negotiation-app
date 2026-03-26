@@ -2,7 +2,7 @@
 
 client_id = "fd4ef20851ff5e2ac93799e37f6a4311"
 name = "sustainable-negotiation-app"
-application_url = "https://example.com"
+application_url = "https://sustainable-negotiation-app.onrender.com"
 embedded = true
 
 [build]
@@ -29,7 +29,11 @@ subpath = "order-verify"
 url = "/api/order-verify"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://sustainable-negotiation-app.onrender.com/auth/callback",
+  "https://sustainable-negotiation-app.onrender.com/auth/shopify/callback",
+  "https://sustainable-negotiation-app.onrender.com/api/auth/callback"
+]
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"
