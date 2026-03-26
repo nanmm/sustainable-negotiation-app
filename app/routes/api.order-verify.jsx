@@ -4,7 +4,12 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const orderNumber = url.searchParams.get("order_number")?.trim();
   const email = url.searchParams.get("email")?.trim();
-  const debug = url.searchParams.get("debug") === "1";
+  const debugFlag =
+    url.searchParams.get("dbg") ??
+    url.searchParams.get("debug") ??
+    url.searchParams.get("_debug") ??
+    "";
+  const debug = debugFlag === "1" || debugFlag.toLowerCase() === "true";
 
   if (!orderNumber || !email) {
     return Response.json({ exists: false }, {
