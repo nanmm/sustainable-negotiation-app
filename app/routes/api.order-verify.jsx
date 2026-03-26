@@ -48,9 +48,19 @@ export const loader = async ({ request }) => {
     const { admin } = await authenticate.public.appProxy(request);
 
     if (!admin) {
-      return Response.json({ exists: false }, {
-        headers: { "Content-Type": "application/json" },
-      });
+      return Response.json(
+        debug
+          ? {
+              exists: false,
+              debug: {
+                reason: "no_admin_in_app_proxy_context",
+                shop: url.searchParams.get("shop"),
+                keys: Array.from(url.searchParams.keys()),
+              },
+            }
+          : { exists: false },
+        { headers: { "Content-Type": "application/json" } }
+      );
     }
     
     const base = orderName.replace(/^#/, "").split("-")[0]; // 1001-F1 -> 1001
