@@ -4,6 +4,7 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const orderNumber = url.searchParams.get("order_number")?.trim();
   const email = url.searchParams.get("email")?.trim();
+  const debug = url.searchParams.get("debug") === "1";
 
   if (!orderNumber || !email) {
     return Response.json({ exists: false }, {
@@ -68,13 +69,26 @@ export const loader = async ({ request }) => {
       return orderMain === base && emailCandidates.includes(normalizedInput);
     });
 
-    return Response.json(
-      { exists: !!matched },
-      { headers: { "Content-Type": "application/json" } }
-    );
+    if (debug) {
+      return Response.json(
+        {
+          exists: !!matched,
+          debug: {
+            orderNumber,
+            orderQuery,
+            edgesLen: edges.length,
+            first: edges[0]?.node ?? null,
+            errors: data?.errors ?? null,
+          },
+        },
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    return Response.json({ exists: !!matched }, { headers: { "Content-Type": "application/json" } });
   } catch (e) {
     return Response.json(
-      { exists: false },
+      debug ? { exists: false, debug: { error: String(e) } } : { exists: false },
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
