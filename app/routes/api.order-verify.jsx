@@ -150,9 +150,6 @@ export const loader = async ({ request }) => {
               id
               name
               email
-              customer {
-                email
-              }
             }
           }
         }
@@ -165,6 +162,24 @@ export const loader = async ({ request }) => {
       );
 
       data = await response.json();
+      const gqlErrors = data?.errors;
+      if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
+        console.error("order-verify graphql errors:", gqlErrors);
+        return orderVerifyResponse(
+          url,
+          debug
+            ? {
+                exists: false,
+                debug: {
+                  reason: "graphql_errors",
+                  errors: gqlErrors,
+                  orderQuery,
+                },
+              }
+            : { exists: false },
+          200,
+        );
+      }
     } catch (gqlErr) {
       console.error("order-verify graphql:", gqlErr);
       return orderVerifyResponse(
@@ -189,7 +204,7 @@ export const loader = async ({ request }) => {
     const matched = edges.find(({ node }) => {
       const name = (node?.name || "").replace(/^#/, "");
       const orderMain = name.split("-")[0];
-      const emailCandidates = [node?.email, node?.customer?.email]
+      const emailCandidates = [node?.email]
         .filter(Boolean)
         .map((value) => value.toLowerCase());
 
