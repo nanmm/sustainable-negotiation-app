@@ -46,7 +46,24 @@ export const loader = async ({ request }) => {
   }
 
   try {
-    const { admin } = await authenticate.public.appProxy(request);
+    let admin;
+    try {
+      ({ admin } = await authenticate.public.appProxy(request));
+    } catch (proxyErr) {
+      console.error("order-verify appProxy:", proxyErr);
+      return Response.json(
+        debug
+          ? {
+              exists: false,
+              debug: {
+                reason: "app_proxy_auth_failed",
+                message: String(proxyErr?.message ?? proxyErr),
+              },
+            }
+          : { exists: false },
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     if (!admin) {
       let sessionCount = null;
@@ -83,8 +100,10 @@ export const loader = async ({ request }) => {
     // Match Shopify Admin order search behavior: "1001" works, and add email filter to reduce false positives.
     // Use a unique variable name to avoid TS language-service false "redeclare" errors.
     const orderQuery = `${base} email:${email}`;
-    const response = await admin.graphql(
-      `#graphql
+    let data;
+    try {
+      const response = await admin.graphql(
+        `#graphql
       query getOrders($query: String!) {
         orders(first: 20, query: $query) {
           edges {
@@ -99,14 +118,31 @@ export const loader = async ({ request }) => {
           }
         }
       }`,
-      {
-        variables: {
-          query: orderQuery,
-        },
-      }
-    );
+        {
+          variables: {
+            query: orderQuery,
+          },
+        }
+      );
 
-    const data = await response.json();
+      data = await response.json();
+    } catch (gqlErr) {
+      console.error("order-verify graphql:", gqlErr);
+      return Response.json(
+        debug
+          ? {
+              exists: false,
+              debug: {
+                reason: "graphql_request_failed",
+                message: String(gqlErr?.message ?? gqlErr),
+                orderQuery,
+              },
+            }
+          : { exists: false },
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const edges = data?.data?.orders?.edges ?? [];
     const normalizedInput = email.toLowerCase();
 
@@ -142,9 +178,19 @@ export const loader = async ({ request }) => {
 
     return Response.json({ exists: !!matched }, { headers: { "Content-Type": "application/json" } });
   } catch (e) {
+    console.error("order-verify fatal:", e);
+    // App Proxy: avoid 5xx so the storefront does not show Shopify's generic third-party error page.
     return Response.json(
-      debug ? { exists: false, debug: { error: String(e) } } : { exists: false },
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      debug
+        ? {
+            exists: false,
+            debug: {
+              reason: "fatal",
+              error: String(e?.message ?? e),
+            },
+          }
+        : { exists: false },
+      { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }
 };

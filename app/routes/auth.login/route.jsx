@@ -5,12 +5,21 @@ import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
 export const loader = async ({ request }) => {
+  // Render/uptime probes often send HEAD; Shopify login() parses formData() and crashes on HEAD.
+  if (request.method === "HEAD") {
+    return new Response(null, { status: 200 });
+  }
+
   const errors = loginErrorMessage(await login(request));
 
   return { errors };
 };
 
 export const action = async ({ request }) => {
+  if (request.method === "HEAD") {
+    return new Response(null, { status: 200 });
+  }
+
   const errors = loginErrorMessage(await login(request));
 
   return {
