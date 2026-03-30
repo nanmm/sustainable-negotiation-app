@@ -2,6 +2,42 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Theme Section Rendering may hit this URL with ?section_id=... and expect HTML, not JSON.
+ * Returning application/json on those subrequests often shows as Shopify's third‑party app error.
+ */
+function orderVerifyResponse(url, body, status = 200, extraHeaders = {}) {
+  const sectionId = url.searchParams.get("section_id");
+  if (sectionId) {
+    const json = JSON.stringify(body);
+    const html = `<div class="shopify-section order-verify-app-proxy" data-section-id="${escapeHtml(sectionId)}"><pre class="order-verify-json">${escapeHtml(json)}</pre></div>`;
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        ...extraHeaders,
+      },
+    });
+  }
+  return Response.json(body, {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...extraHeaders,
+    },
+  });
+}
+
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const orderNumber = url.searchParams.get("order_number")?.trim();
@@ -19,7 +55,8 @@ export const loader = async ({ request }) => {
     debugFlag.toLowerCase() === "true";
 
   if (!orderNumber || !email) {
-    return Response.json(
+    return orderVerifyResponse(
+      url,
       debug
         ? {
             exists: false,
@@ -32,10 +69,8 @@ export const loader = async ({ request }) => {
             },
           }
         : { exists: false },
-      {
-        status: 400,
-        headers: { "Content-Type": "application/json", "X-Dbg-Seen": debugFlag || "" },
-      }
+      400,
+      { "X-Dbg-Seen": debugFlag || "" },
     );
   }
 
@@ -51,17 +86,22 @@ export const loader = async ({ request }) => {
       ({ admin } = await authenticate.public.appProxy(request));
     } catch (proxyErr) {
       console.error("order-verify appProxy:", proxyErr);
-      return Response.json(
+      const message =
+        proxyErr instanceof Response
+          ? `upstream_response_${proxyErr.status}`
+          : String(proxyErr?.message ?? proxyErr);
+      return orderVerifyResponse(
+        url,
         debug
           ? {
               exists: false,
               debug: {
                 reason: "app_proxy_auth_failed",
-                message: String(proxyErr?.message ?? proxyErr),
+                message,
               },
             }
           : { exists: false },
-        { headers: { "Content-Type": "application/json" } }
+        200,
       );
     }
 
@@ -79,7 +119,8 @@ export const loader = async ({ request }) => {
       } catch {
         // ignore db errors in debug response
       }
-      return Response.json(
+      return orderVerifyResponse(
+        url,
         debug
           ? {
               exists: false,
@@ -92,13 +133,11 @@ export const loader = async ({ request }) => {
               },
             }
           : { exists: false },
-        { headers: { "Content-Type": "application/json" } }
+        200,
       );
     }
-    
+
     const base = orderName.replace(/^#/, "").split("-")[0]; // 1001-F1 -> 1001
-    // Match Shopify Admin order search behavior: "1001" works, and add email filter to reduce false positives.
-    // Use a unique variable name to avoid TS language-service false "redeclare" errors.
     const orderQuery = `${base} email:${email}`;
     let data;
     try {
@@ -122,13 +161,14 @@ export const loader = async ({ request }) => {
           variables: {
             query: orderQuery,
           },
-        }
+        },
       );
 
       data = await response.json();
     } catch (gqlErr) {
       console.error("order-verify graphql:", gqlErr);
-      return Response.json(
+      return orderVerifyResponse(
+        url,
         debug
           ? {
               exists: false,
@@ -139,7 +179,7 @@ export const loader = async ({ request }) => {
               },
             }
           : { exists: false },
-        { headers: { "Content-Type": "application/json" } }
+        200,
       );
     }
 
@@ -157,30 +197,27 @@ export const loader = async ({ request }) => {
     });
 
     if (debug) {
-      return Response.json(
-        {
-          exists: !!matched,
-          debug: {
-            orderNumber,
-            orderQuery,
-            edgesLen: edges.length,
-            first: edges[0]?.node ?? null,
-            errors: data?.errors ?? null,
-            dbg: url.searchParams.get("dbg"),
-            debug: url.searchParams.get("debug"),
-            _debug: url.searchParams.get("_debug"),
-            keys: Array.from(url.searchParams.keys()),
-          },
+      return orderVerifyResponse(url, {
+        exists: !!matched,
+        debug: {
+          orderNumber,
+          orderQuery,
+          edgesLen: edges.length,
+          first: edges[0]?.node ?? null,
+          errors: data?.errors ?? null,
+          dbg: url.searchParams.get("dbg"),
+          debug: url.searchParams.get("debug"),
+          _debug: url.searchParams.get("_debug"),
+          keys: Array.from(url.searchParams.keys()),
         },
-        { headers: { "Content-Type": "application/json" } }
-      );
+      });
     }
 
-    return Response.json({ exists: !!matched }, { headers: { "Content-Type": "application/json" } });
+    return orderVerifyResponse(url, { exists: !!matched });
   } catch (e) {
     console.error("order-verify fatal:", e);
-    // App Proxy: avoid 5xx so the storefront does not show Shopify's generic third-party error page.
-    return Response.json(
+    return orderVerifyResponse(
+      url,
       debug
         ? {
             exists: false,
@@ -190,7 +227,7 @@ export const loader = async ({ request }) => {
             },
           }
         : { exists: false },
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      200,
     );
   }
 };

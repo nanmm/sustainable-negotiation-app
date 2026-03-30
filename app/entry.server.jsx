@@ -14,6 +14,13 @@ export default async function handleRequest(
   reactRouterContext,
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
+  // https://httpwg.org/specs/rfc9110.html#HEAD — avoid streaming an empty HTML shell for HEAD probes.
+  if (request.method.toUpperCase() === "HEAD") {
+    return new Response(null, {
+      status: responseStatusCode,
+      headers: responseHeaders,
+    });
+  }
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 
